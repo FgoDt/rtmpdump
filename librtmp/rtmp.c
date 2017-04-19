@@ -1103,7 +1103,7 @@ RTMP_ConnectStream(RTMP *r, int seekTime)
   /* seekTime was already set by SetupStream / SetupURL.
    * This is only needed by ReconnectStream.
    */
-  if (seekTime > 0)
+  //if (seekTime > 0)
     r->Link.seekTime = seekTime;
 
   r->m_mediaChannel = 0;
@@ -2183,6 +2183,37 @@ SendPong(RTMP *r, double txn)
   return RTMP_SendPacket(r, &packet, FALSE);
 }
 
+SAVC(getStreamLength);
+
+
+
+static int
+SendGetStreamLength(RTMP *r)
+{
+	RTMPPacket packet;
+	char pbuf[1024], *pend = pbuf + sizeof(pbuf);
+	char *enc;
+
+	packet.m_nChannel = 0x08;
+	packet.m_headerType = RTMP_PACKET_SIZE_LARGE;
+	packet.m_packetType = RTMP_PACKET_TYPE_INVOKE;
+	packet.m_nTimeStamp = 0;
+	packet.m_nInfoField2 = r->m_stream_id;
+	packet.m_hasAbsTimestamp = 0;
+	packet.m_body = pbuf + RTMP_MAX_HEADER_SIZE;
+
+	enc = packet.m_body;
+	enc = AMF_EncodeString(enc, pend, &av_getStreamLength);
+	enc = AMF_EncodeNumber(enc, pend, ++r->m_numInvokes);
+	*enc++ = AMF_NULL;
+	enc = AMF_EncodeString(enc, pend, &r->Link.playpath);
+	if (!enc)
+		return FALSE;
+	packet.m_nBodySize = enc - packet.m_body;
+	return RTMP_SendPacket(r, &packet, TRUE);
+}
+
+
 SAVC(play);
 
 static int
@@ -2224,10 +2255,10 @@ SendPlay(RTMP *r)
     enc = AMF_EncodeNumber(enc, pend, -1000.0);
   else
     {
-      if (r->Link.seekTime > 0.0)
+     // if (r->Link.seekTime > 0.0)
 	enc = AMF_EncodeNumber(enc, pend, r->Link.seekTime);	/* resume from here */
-      else
-	enc = AMF_EncodeNumber(enc, pend, 0.0);	/*-2000.0);*/ /* recorded as default, -2000.0 is not reliable since that freezes the player if the stream is not found */
+      //else
+	//enc = AMF_EncodeNumber(enc, pend, 0.0);	/*-2000.0);*/ /* recorded as default, -2000.0 is not reliable since that freezes the player if the stream is not found */
     }
   if (!enc)
     return FALSE;
@@ -3002,6 +3033,8 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
 	    {
 	      if (r->Link.lFlags & RTMP_LF_PLST)
 	        SendPlaylist(r);
+
+		  SendGetStreamLength(r);
 	      SendPlay(r);
 	      RTMP_SendCtrl(r, 3, r->m_stream_id, r->m_nBufferMS);
 	    }
